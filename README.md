@@ -23,4 +23,5 @@ A **EcoFactory** é uma plataforma web desenvolvida para substituir controles ma
 - `feature/interface`: Telas e Front-End
 - `feature/maquinas`: CRUD de máquinas
 
-- [📄 Relatório do Encontro 3 - Protótipo UI/UX](https://docs.google.com/document/d/1u0AD-HNzQtys1smfOX0kP3Wr30curXDuJXnzILME7bE/edit?usp=sharing)
+ENTREGA 3
+https://docs.google.com/document/d/1u0AD-HNzQtys1SmfOX0kP3Wr30curXDuJXnzILME7bE/edit?usp=sharing
