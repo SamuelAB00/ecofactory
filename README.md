@@ -1,27 +1,16 @@
-# 🏭 EcoFactory - Sistema de Monitoramento e Gestão Industrial
+# React + Vite
 
-> **Projeto Integrador Full Stack** | Curso Técnico em Informática para Internet
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
----
+Currently, two official plugins are available:
 
-## 📌 Sobre o Projeto
-A **EcoFactory** é uma plataforma web desenvolvida para substituir controles manuais em planilhas por um sistema centralizado de gestão industrial.
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
----
+## React Compiler
 
-## 📂 Estrutura do Repositório
-- `frontend/`: Aplicação React
-- `backend/`: API Node.js e Express
-- `database/`: Scripts do PostgreSQL
-- `documentacao/`: Protótipos e escopo do projeto
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
----
+## Expanding the Oxlint configuration
 
-## 🌿 Fluxo de Branches
-- `main`: Código estável final
-- `develop`: Integração das entregas
-- `feature/interface`: Telas e Front-End
-- `feature/maquinas`: CRUD de máquinas
-
-ENTREGA 3
-https://docs.google.com/document/d/1u0AD-HNzQtys1SmfOX0kP3Wr30curXDuJXnzILME7bE/edit?usp=sharing
+If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
