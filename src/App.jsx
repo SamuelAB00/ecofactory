@@ -1,183 +1,131 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Factory, 
+  BarChart2, 
   LayoutDashboard, 
   Recycle, 
-  BarChart3, 
+  FileText, 
   Settings, 
-  Leaf,
-  TrendingUp,
-  Award,
-  PlusCircle,
-  Trash2,
-  Calendar,
-  Package,
-  Printer,
-  CheckCircle2,
-  Building,
-  Target
+  Leaf, 
+  Award, 
+  TrendingUp, 
+  PlusCircle, 
+  Trash2 
 } from 'lucide-react';
-import { 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell
-} from 'recharts';
-
-const dataEvolucao = [
-  { mes: 'Jan', reciclado: 400, metas: 300 },
-  { mes: 'Fev', reciclado: 500, metas: 350 },
-  { mes: 'Mar', reciclado: 700, metas: 400 },
-  { mes: 'Abr', reciclado: 650, metas: 450 },
-  { mes: 'Mai', reciclado: 890, metas: 500 },
-  { mes: 'Jun', reciclado: 1100, metas: 600 },
-];
-
-const dataResiduosGrafico = [
-  { name: 'Plástico', value: 45, color: '#10b981' },
-  { name: 'Papel/Papelão', value: 30, color: '#06b6d4' },
-  { name: 'Metal', value: 15, color: '#f59e0b' },
-  { name: 'Vidro', value: 10, color: '#6366f1' },
-];
-
-const dadosIniciaisResiduos = [
-  { id: 1, material: 'Plástico PET', quantidade: 150, tipo: 'Plástico', data: '2026-08-15' },
-  { id: 2, material: 'Caixas de Papelão', quantidade: 320, tipo: 'Papel/Papelão', data: '2026-08-16' },
-  { id: 3, material: 'Latas de Alumínio', quantidade: 85, tipo: 'Metal', data: '2026-08-17' },
-];
 
 export default function App() {
-  const [abaAtiva, setAbaAtiva] = useState('dashboard');
+  const [telaAtual, setTelaAtual] = useState('dashboard');
+  const [listaResiduos, setListaResiduos] = useState([]);
+  const [material, setMaterial] = useState('');
+  const [quantidade, setQuantidade] = useState('');
+  const [tipo, setTipo] = useState('Plástico');
 
-  // Busca do LocalStorage na inicialização
-  const [listaResiduos, setListaResiduos] = useState(() => {
-    const salvos = localStorage.getItem('ecofactory_residuos');
-    return salvos ? JSON.parse(salvos) : dadosIniciaisResiduos;
-  });
+  const API_URL = 'http://localhost:3001/api/residuos';
 
-  const [nomeEmpresa, setNomeEmpresa] = useState(() => {
-    return localStorage.getItem('ecofactory_empresa') || 'EcoFactory Indústria S.A.';
-  });
-
-  const [metaMensal, setMetaMensal] = useState(() => {
-    return localStorage.getItem('ecofactory_meta') || '5000';
-  });
-
-  const [novoMaterial, setNovoMaterial] = useState('');
-  const [novaQuantidade, setNovaQuantidade] = useState('');
-  const [novoTipo, setNovoTipo] = useState('Plástico');
-
-  // Efeitos para sincronizar com o LocalStorage
-  useEffect(() => {
-    localStorage.setItem('ecofactory_empresa', nomeEmpresa);
-  }, [nomeEmpresa]);
+  const carregarResiduos = async () => {
+    try {
+      const res = await fetch(API_URL);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setListaResiduos(data);
+      } else {
+        setListaResiduos([]);
+      }
+    } catch (error) {
+      console.error('Erro ao buscar resíduos:', error);
+      setListaResiduos([]);
+    }
+  };
 
   useEffect(() => {
-    localStorage.setItem('ecofactory_meta', metaMensal);
-  }, [metaMensal]);
+    carregarResiduos();
+  }, []);
 
-  // Função de cadastro corrigida com gravação direta
-  const handleAdicionarResiduo = (e) => {
+  const handleCadastrar = async (e) => {
     e.preventDefault();
-    if (!novoMaterial || !novaQuantidade) return;
+    if (!material || !quantidade) return;
 
-    const item = {
-      id: Date.now(),
-      material: novoMaterial,
-      quantidade: Number(novaQuantidade),
-      tipo: novoTipo,
-      data: new Date().toISOString().split('T')[0]
-    };
-
-    const novaLista = [item, ...listaResiduos];
-    setListaResiduos(novaLista);
-    localStorage.setItem('ecofactory_residuos', JSON.stringify(novaLista));
-
-    setNovoMaterial('');
-    setNovaQuantidade('');
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ material, quantidade: Number(quantidade), tipo }),
+      });
+      if (res.ok) {
+        setMaterial('');
+        setQuantidade('');
+        carregarResiduos();
+      }
+    } catch (error) {
+      console.error('Erro ao cadastrar:', error);
+    }
   };
 
-  const handleDeletarResiduo = (id) => {
-    const novaLista = listaResiduos.filter(item => item.id !== id);
-    setListaResiduos(novaLista);
-    localStorage.setItem('ecofactory_residuos', JSON.stringify(novaLista));
+  const handleDeletar = async (id) => {
+    try {
+      const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+      if (res.ok) carregarResiduos();
+    } catch (error) {
+      console.error('Erro ao deletar:', error);
+    }
   };
 
-  const handleImprimir = () => {
-    window.print();
-  };
+  const totalKg = Array.isArray(listaResiduos)
+    ? listaResiduos.reduce((acc, curr) => acc + Number(curr.quantidade || 0), 0)
+    : 0;
 
   return (
-    <div className="flex h-screen bg-slate-950 text-slate-100 font-sans print:bg-white print:text-black">
-      {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between shrink-0 print:hidden">
+    <div className="flex h-screen bg-[#0b1120] text-slate-100 font-sans overflow-hidden">
+      {/* Sidebar / Menu Lateral */}
+      <aside className="w-64 bg-[#0f172a] border-r border-slate-800/80 p-5 flex flex-col justify-between shrink-0">
         <div>
-          <div className="flex items-center gap-3 mb-8 text-emerald-400">
-            <Factory size={32} />
-            <h1 className="text-xl font-bold tracking-wide text-white">EcoFactory</h1>
+          <div className="flex items-center gap-3 mb-8 px-2 text-emerald-400">
+            <BarChart2 size={28} className="text-emerald-400" />
+            <h1 className="text-xl font-bold text-white tracking-tight">EcoFactory</h1>
           </div>
 
-          <nav className="space-y-2">
-            <button 
-              onClick={() => setAbaAtiva('dashboard')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'dashboard' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+          <nav className="space-y-1.5">
+            <button
+              onClick={() => setTelaAtual('dashboard')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                telaAtual === 'dashboard'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
-              <LayoutDashboard size={20} />
+              <LayoutDashboard size={18} />
               <span>Dashboard</span>
             </button>
 
-            <button 
-              onClick={() => setAbaAtiva('residuos')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'residuos' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+            <button
+              onClick={() => setTelaAtual('residuos')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-all ${
+                telaAtual === 'residuos'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200'
               }`}
             >
-              <Recycle size={20} />
+              <Recycle size={18} />
               <span>Resíduos</span>
             </button>
 
-            <button 
-              onClick={() => setAbaAtiva('relatorios')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'relatorios' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <BarChart3 size={20} />
+            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 transition-all">
+              <FileText size={18} />
               <span>Relatórios</span>
             </button>
 
-            <button 
-              onClick={() => setAbaAtiva('configuracoes')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'configuracoes' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <Settings size={20} />
+            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 transition-all">
+              <Settings size={18} />
               <span>Configurações</span>
             </button>
           </nav>
         </div>
 
-        <div className="p-4 bg-emerald-950/40 border border-emerald-500/20 rounded-xl flex items-center gap-3">
-          <Leaf className="text-emerald-400 shrink-0" size={24} />
+        <div className="p-3.5 bg-slate-900/80 border border-slate-800 rounded-xl flex items-center gap-3">
+          <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-400">
+            <Leaf size={20} />
+          </div>
           <div className="text-xs">
-            <p className="font-semibold text-emerald-300">Status Ecológico</p>
+            <p className="font-medium text-slate-200">Status Ecológico</p>
             <p className="text-slate-400">85% Meta atingida</p>
           </div>
         </div>
@@ -185,308 +133,205 @@ export default function App() {
 
       {/* Conteúdo Principal */}
       <main className="flex-1 p-8 overflow-y-auto">
-        {abaAtiva === 'dashboard' && (
-          <div className="space-y-8">
+        {telaAtual === 'dashboard' ? (
+          <div className="space-y-6">
             <header>
-              <h2 className="text-3xl font-bold">Painel de Controle</h2>
-              <p className="text-slate-400 mt-1">Acompanhe as métricas de reciclagem e metas ESG de {nomeEmpresa}.</p>
+              <h2 className="text-2xl font-bold text-white">Painel de Controle</h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Acompanhe as métricas de reciclagem e metas ESG de EcoFactory Indústria S.A..
+              </p>
             </header>
 
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
+            {/* Cards Superiores */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="p-5 bg-[#0f172a] border border-slate-800/80 rounded-2xl flex justify-between items-start">
                 <div>
-                  <p className="text-sm text-slate-400">Total Reciclado</p>
-                  <p className="text-3xl font-bold mt-2 text-emerald-400">4.240 kg</p>
-                  <span className="text-xs text-emerald-500 flex items-center gap-1 mt-2">
-                    <TrendingUp size={14} /> +12% este mês
-                  </span>
+                  <p className="text-xs font-medium text-slate-400">Total Reciclado</p>
+                  <p className="text-2xl font-bold text-emerald-400 mt-2">
+                    {totalKg.toLocaleString('pt-BR')} kg
+                  </p>
+                  <p className="text-xs text-emerald-500 mt-2 flex items-center gap-1 font-medium">
+                    <TrendingUp size={12} /> +12% este mês
+                  </p>
                 </div>
-                <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-400">
-                  <Recycle size={24} />
+                <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-400 border border-emerald-500/20">
+                  <Recycle size={22} />
                 </div>
               </div>
 
-              <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
+              <div className="p-5 bg-[#0f172a] border border-slate-800/80 rounded-2xl flex justify-between items-start">
                 <div>
-                  <p className="text-sm text-slate-400">Redução de CO₂</p>
-                  <p className="text-3xl font-bold mt-2 text-cyan-400">8.9 Ton</p>
-                  <span className="text-xs text-cyan-500 flex items-center gap-1 mt-2">
-                    <TrendingUp size={14} /> +8% este mês
-                  </span>
+                  <p className="text-xs font-medium text-slate-400">Redução de CO₂</p>
+                  <p className="text-2xl font-bold text-cyan-400 mt-2">8.9 Ton</p>
+                  <p className="text-xs text-cyan-500 mt-2 flex items-center gap-1 font-medium">
+                    <TrendingUp size={12} /> +8% este mês
+                  </p>
                 </div>
-                <div className="p-3 bg-cyan-500/10 rounded-lg text-cyan-400">
-                  <Leaf size={24} />
+                <div className="p-2.5 bg-cyan-500/10 rounded-xl text-cyan-400 border border-cyan-500/20">
+                  <Leaf size={22} />
                 </div>
               </div>
 
-              <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
+              <div className="p-5 bg-[#0f172a] border border-slate-800/80 rounded-2xl flex justify-between items-start">
                 <div>
-                  <p className="text-sm text-slate-400">Meta Mensal</p>
-                  <p className="text-3xl font-bold mt-2 text-amber-400">{metaMensal} kg</p>
-                  <span className="text-xs text-slate-400 mt-2 block">Definida nas configurações</span>
+                  <p className="text-xs font-medium text-slate-400">Meta Mensal</p>
+                  <p className="text-2xl font-bold text-amber-400 mt-2">5000 kg</p>
+                  <p className="text-xs text-slate-400 mt-2">Definida nas configurações</p>
                 </div>
-                <div className="p-3 bg-amber-500/10 rounded-lg text-amber-400">
-                  <Award size={24} />
-                </div>
-              </div>
-            </section>
-
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 p-6 bg-slate-900 border border-slate-800 rounded-xl">
-                <h3 className="text-lg font-semibold mb-4">Volume de Reciclagem (kg)</h3>
-                <div className="h-72">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dataEvolucao}>
-                      <defs>
-                        <linearGradient id="colorReciclado" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
-                          <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                      <XAxis dataKey="mes" stroke="#64748b" />
-                      <YAxis stroke="#64748b" />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                        itemStyle={{ color: '#10b981' }}
-                      />
-                      <Area type="monotone" dataKey="reciclado" stroke="#10b981" fillOpacity={1} fill="url(#colorReciclado)" strokeWidth={3} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-400 border border-amber-500/20">
+                  <Award size={22} />
                 </div>
               </div>
+            </div>
 
-              <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex flex-col justify-between">
-                <h3 className="text-lg font-semibold mb-2">Tipos de Resíduos</h3>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={dataResiduosGrafico}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {dataResiduosGrafico.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', borderColor: '#334155', borderRadius: '8px' }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+            {/* Seção dos Gráficos */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              {/* Gráfico de Linha */}
+              <div className="lg:col-span-2 p-5 bg-[#0f172a] border border-slate-800/80 rounded-2xl flex flex-col justify-between">
+                <h3 className="text-sm font-semibold text-slate-200 mb-4">Volume de Reciclagem (kg)</h3>
+                <div className="h-56 relative flex items-end">
+                  <svg className="w-full h-full overflow-visible" viewBox="0 0 500 150">
+                    <defs>
+                      <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M 0,110 Q 100,90 200,60 T 400,70 T 500,20 L 500,150 L 0,150 Z"
+                      fill="url(#grad)"
+                    />
+                    <path
+                      d="M 0,110 Q 100,90 200,60 T 400,70 T 500,20"
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="3"
+                    />
+                  </svg>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
-                  {dataResiduosGrafico.map((item) => (
-                    <div key={item.name} className="flex items-center gap-2">
-                      <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
-                      <span className="text-slate-400">{item.name}</span>
-                    </div>
-                  ))}
+                <div className="flex justify-between text-xs text-slate-500 mt-2 px-1">
+                  <span>Jan</span>
+                  <span>Fev</span>
+                  <span>Mar</span>
+                  <span>Abr</span>
+                  <span>Mai</span>
+                  <span>Jun</span>
                 </div>
               </div>
-            </section>
+
+              {/* Gráfico de Rosca */}
+              <div className="p-5 bg-[#0f172a] border border-slate-800/80 rounded-2xl flex flex-col justify-between">
+                <h3 className="text-sm font-semibold text-slate-200 mb-2">Tipos de Resíduos</h3>
+                <div className="flex-1 flex items-center justify-center py-2">
+                  <div className="w-36 h-36 rounded-full border-[14px] border-emerald-500 border-t-cyan-500 border-r-indigo-500 border-b-amber-500"></div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs text-slate-400 mt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Plástico
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-500"></span> Papel/Papelão
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Metal
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Vidro
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-        )}
-
-        {abaAtiva === 'residuos' && (
-          <div className="space-y-8">
+        ) : (
+          /* Tela de Resíduos */
+          <div className="space-y-6">
             <header>
-              <h2 className="text-3xl font-bold">Gestão de Resíduos</h2>
-              <p className="text-slate-400 mt-1">Cadastre novos lotes de resíduos recolhidos e gerencie o estoque.</p>
+              <h2 className="text-2xl font-bold text-white">Gestão de Resíduos</h2>
+              <p className="text-sm text-slate-400 mt-1">
+                Cadastre e gerencie os materiais coletados diretamente no banco de dados.
+              </p>
             </header>
 
-            <form onSubmit={handleAdicionarResiduo} className="p-6 bg-slate-900 border border-slate-800 rounded-xl space-y-4">
-              <h3 className="text-lg font-semibold text-emerald-400 flex items-center gap-2">
-                <PlusCircle size={20} /> Cadastrar Novo Lote
+            {/* Formulário */}
+            <form onSubmit={handleCadastrar} className="p-5 bg-[#0f172a] border border-slate-800/80 rounded-2xl space-y-4">
+              <h3 className="text-sm font-semibold text-emerald-400 flex items-center gap-2">
+                <PlusCircle size={18} /> Cadastrar Novo Lote
               </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Nome do Material</label>
-                  <input 
-                    type="text"
-                    placeholder="Ex: Garrafas PET Transparentes"
-                    value={novoMaterial}
-                    onChange={(e) => setNovoMaterial(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Quantidade (kg)</label>
-                  <input 
-                    type="number"
-                    placeholder="Ex: 120"
-                    value={novaQuantidade}
-                    onChange={(e) => setNovaQuantidade(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Tipo de Material</label>
-                  <select 
-                    value={novoTipo}
-                    onChange={(e) => setNovoTipo(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="Plástico">Plástico</option>
-                    <option value="Papel/Papelão">Papel/Papelão</option>
-                    <option value="Metal">Metal</option>
-                    <option value="Vidro">Vidro</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <button 
-                  type="submit"
-                  className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2"
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <input
+                  type="text"
+                  placeholder="Material (ex: Garrafas PET)"
+                  value={material}
+                  onChange={(e) => setMaterial(e.target.value)}
+                  className="bg-[#0b1120] border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+                <input
+                  type="number"
+                  placeholder="Quantidade (kg)"
+                  value={quantidade}
+                  onChange={(e) => setQuantidade(e.target.value)}
+                  className="bg-[#0b1120] border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
+                />
+                <select
+                  value={tipo}
+                  onChange={(e) => setTipo(e.target.value)}
+                  className="bg-[#0b1120] border border-slate-800 rounded-xl px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
                 >
-                  <PlusCircle size={18} /> Cadastrar Resíduo
-                </button>
+                  <option value="Plástico">Plástico</option>
+                  <option value="Papel/Papelão">Papel/Papelão</option>
+                  <option value="Metal">Metal</option>
+                  <option value="Vidro">Vidro</option>
+                </select>
               </div>
+              <button
+                type="submit"
+                className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-5 py-2.5 rounded-xl text-sm transition-all"
+              >
+                Salvar no Banco
+              </button>
             </form>
 
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-              <div className="p-6 border-b border-slate-800 flex justify-between items-center">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <Package size={20} className="text-emerald-400" /> Resíduos Cadastrados
-                </h3>
-                <span className="text-xs text-slate-400">Total: {listaResiduos.length} itens</span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm text-slate-300">
-                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+            {/* Tabela de Itens */}
+            <div className="bg-[#0f172a] border border-slate-800/80 rounded-2xl overflow-hidden">
+              <table className="w-full text-left text-sm text-slate-300">
+                <thead className="bg-[#0b1120] text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th className="py-3.5 px-6">ID</th>
+                    <th className="py-3.5 px-6">Material</th>
+                    <th className="py-3.5 px-6">Tipo</th>
+                    <th className="py-3.5 px-6">Quantidade</th>
+                    <th className="py-3.5 px-6 text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {listaResiduos.length === 0 ? (
                     <tr>
-                      <th className="py-3 px-6">Material</th>
-                      <th className="py-3 px-6">Categoria</th>
-                      <th className="py-3 px-6">Quantidade</th>
-                      <th className="py-3 px-6">Data</th>
-                      <th className="py-3 px-6 text-right">Ação</th>
+                      <td colSpan="5" className="py-6 text-center text-slate-500">
+                        Nenhum resíduo cadastrado no PostgreSQL.
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {listaResiduos.map((item) => (
-                      <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
+                  ) : (
+                    listaResiduos.map((item) => (
+                      <tr key={item.id} className="hover:bg-slate-800/30">
+                        <td className="py-4 px-6 text-slate-500">#{item.id}</td>
                         <td className="py-4 px-6 font-medium text-white">{item.material}</td>
-                        <td className="py-4 px-6">
-                          <span className="px-2.5 py-1 bg-slate-800 text-slate-300 rounded-full text-xs border border-slate-700">
-                            {item.tipo}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-emerald-400 font-semibold">{item.quantidade} kg</td>
-                        <td className="py-4 px-6 text-slate-400 flex items-center gap-2">
-                          <Calendar size={14} /> {item.data}
+                        <td className="py-4 px-6">{item.tipo}</td>
+                        <td className="py-4 px-6 text-emerald-400 font-semibold">
+                          {item.quantidade} kg
                         </td>
                         <td className="py-4 px-6 text-right">
-                          <button 
-                            onClick={() => handleDeletarResiduo(item.id)}
-                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
-                            title="Excluir Lote"
+                          <button
+                            onClick={() => handleDeletar(item.id)}
+                            className="text-slate-400 hover:text-red-400 transition-colors"
                           >
                             <Trash2 size={18} />
                           </button>
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {abaAtiva === 'relatorios' && (
-          <div className="space-y-8">
-            <header className="flex justify-between items-center">
-              <div>
-                <h2 className="text-3xl font-bold">Relatório Sustentável (ESG)</h2>
-                <p className="text-slate-400 mt-1">Consolidado mensal de impacto ambiental da {nomeEmpresa}.</p>
-              </div>
-              <button 
-                onClick={handleImprimir}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-100 font-medium px-4 py-2.5 rounded-lg text-sm border border-slate-700 transition-all flex items-center gap-2 print:hidden"
-              >
-                <Printer size={18} /> Imprimir / Salvar PDF
-              </button>
-            </header>
-
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl space-y-6">
-              <div className="border-b border-slate-800 pb-4 flex justify-between items-center">
-                <div>
-                  <span className="text-xs text-emerald-400 font-semibold tracking-wider uppercase">Certificação Ambiental</span>
-                  <h3 className="text-xl font-bold text-white mt-1">Balanço do Período - 2026</h3>
-                </div>
-                <span className="px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full text-xs font-semibold flex items-center gap-1.5">
-                  <CheckCircle2 size={14} /> Status: Conforme
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
-                  <p className="text-xs text-slate-400">Total de Resíduos</p>
-                  <p className="text-xl font-bold text-white mt-1">4.240 kg</p>
-                </div>
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
-                  <p className="text-xs text-slate-400">Emissões Evitadas</p>
-                  <p className="text-xl font-bold text-cyan-400 mt-1">8.9 Ton CO₂</p>
-                </div>
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
-                  <p className="text-xs text-slate-400">Energia Poupada</p>
-                  <p className="text-xl font-bold text-amber-400 mt-1">12.4 MWh</p>
-                </div>
-                <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
-                  <p className="text-xs text-slate-400">Água Economizada</p>
-                  <p className="text-xl font-bold text-emerald-400 mt-1">45.000 L</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {abaAtiva === 'configuracoes' && (
-          <div className="space-y-8">
-            <header>
-              <h2 className="text-3xl font-bold">Configurações do Sistema</h2>
-              <p className="text-slate-400 mt-1">Gerencie os dados da organização e parâmetros de reciclagem.</p>
-            </header>
-
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl space-y-6 max-w-2xl">
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <Building size={18} className="text-emerald-400" /> Nome da Empresa / Unidade
-                </label>
-                <input 
-                  type="text"
-                  value={nomeEmpresa}
-                  onChange={(e) => setNomeEmpresa(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
-                  <Target size={18} className="text-emerald-400" /> Meta Mensal de Reciclagem (kg)
-                </label>
-                <input 
-                  type="number"
-                  value={metaMensal}
-                  onChange={(e) => setMetaMensal(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
-                />
-              </div>
-
-              <div className="pt-4 border-t border-slate-800 flex justify-end">
-                <span className="text-xs text-emerald-400 self-center mr-auto">✓ Salvo automaticamente</span>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
