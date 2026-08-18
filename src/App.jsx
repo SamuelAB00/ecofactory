@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Factory, 
   LayoutDashboard, 
@@ -13,7 +13,6 @@ import {
   Calendar,
   Package,
   Printer,
-  Download,
   CheckCircle2,
   Building,
   Target
@@ -47,23 +46,43 @@ const dataResiduosGrafico = [
   { name: 'Vidro', value: 10, color: '#6366f1' },
 ];
 
+const dadosIniciaisResiduos = [
+  { id: 1, material: 'Plástico PET', quantidade: 150, tipo: 'Plástico', data: '2026-08-15' },
+  { id: 2, material: 'Caixas de Papelão', quantidade: 320, tipo: 'Papel/Papelão', data: '2026-08-16' },
+  { id: 3, material: 'Latas de Alumínio', quantidade: 85, tipo: 'Metal', data: '2026-08-17' },
+];
+
 export default function App() {
   const [abaAtiva, setAbaAtiva] = useState('dashboard');
 
-  const [listaResiduos, setListaResiduos] = useState([
-    { id: 1, material: 'Plástico PET', quantidade: 150, tipo: 'Plástico', data: '2026-08-15' },
-    { id: 2, material: 'Caixas de Papelão', quantidade: 320, tipo: 'Papel/Papelão', data: '2026-08-16' },
-    { id: 3, material: 'Latas de Alumínio', quantidade: 85, tipo: 'Metal', data: '2026-08-17' },
-  ]);
+  // Busca do LocalStorage na inicialização
+  const [listaResiduos, setListaResiduos] = useState(() => {
+    const salvos = localStorage.getItem('ecofactory_residuos');
+    return salvos ? JSON.parse(salvos) : dadosIniciaisResiduos;
+  });
+
+  const [nomeEmpresa, setNomeEmpresa] = useState(() => {
+    return localStorage.getItem('ecofactory_empresa') || 'EcoFactory Indústria S.A.';
+  });
+
+  const [metaMensal, setMetaMensal] = useState(() => {
+    return localStorage.getItem('ecofactory_meta') || '5000';
+  });
 
   const [novoMaterial, setNovoMaterial] = useState('');
   const [novaQuantidade, setNovaQuantidade] = useState('');
   const [novoTipo, setNovoTipo] = useState('Plástico');
 
-  // Estados de Configurações
-  const [nomeEmpresa, setNomeEmpresa] = useState('EcoFactory Indústria S.A.');
-  const [metaMensal, setMetaMensal] = useState('5000');
+  // Efeitos para sincronizar com o LocalStorage
+  useEffect(() => {
+    localStorage.setItem('ecofactory_empresa', nomeEmpresa);
+  }, [nomeEmpresa]);
 
+  useEffect(() => {
+    localStorage.setItem('ecofactory_meta', metaMensal);
+  }, [metaMensal]);
+
+  // Função de cadastro corrigida com gravação direta
   const handleAdicionarResiduo = (e) => {
     e.preventDefault();
     if (!novoMaterial || !novaQuantidade) return;
@@ -76,13 +95,18 @@ export default function App() {
       data: new Date().toISOString().split('T')[0]
     };
 
-    setListaResiduos([item, ...listaResiduos]);
+    const novaLista = [item, ...listaResiduos];
+    setListaResiduos(novaLista);
+    localStorage.setItem('ecofactory_residuos', JSON.stringify(novaLista));
+
     setNovoMaterial('');
     setNovaQuantidade('');
   };
 
   const handleDeletarResiduo = (id) => {
-    setListaResiduos(listaResiduos.filter(item => item.id !== id));
+    const novaLista = listaResiduos.filter(item => item.id !== id);
+    setListaResiduos(novaLista);
+    localStorage.setItem('ecofactory_residuos', JSON.stringify(novaLista));
   };
 
   const handleImprimir = () => {
@@ -91,7 +115,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans print:bg-white print:text-black">
-      {/* Sidebar - Oculta ao imprimir */}
+      {/* Sidebar */}
       <aside className="w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between shrink-0 print:hidden">
         <div>
           <div className="flex items-center gap-3 mb-8 text-emerald-400">
@@ -165,7 +189,7 @@ export default function App() {
           <div className="space-y-8">
             <header>
               <h2 className="text-3xl font-bold">Painel de Controle</h2>
-              <p className="text-slate-400 mt-1">Acompanhe as métricas de reciclagem e metas ESG em tempo real.</p>
+              <p className="text-slate-400 mt-1">Acompanhe as métricas de reciclagem e metas ESG de {nomeEmpresa}.</p>
             </header>
 
             <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -197,9 +221,9 @@ export default function App() {
 
               <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
                 <div>
-                  <p className="text-sm text-slate-400">Selo de Eficiência</p>
-                  <p className="text-3xl font-bold mt-2 text-amber-400">Nível A+</p>
-                  <span className="text-xs text-slate-400 mt-2 block">Top 5% das empresas</span>
+                  <p className="text-sm text-slate-400">Meta Mensal</p>
+                  <p className="text-3xl font-bold mt-2 text-amber-400">{metaMensal} kg</p>
+                  <span className="text-xs text-slate-400 mt-2 block">Definida nas configurações</span>
                 </div>
                 <div className="p-3 bg-amber-500/10 rounded-lg text-amber-400">
                   <Award size={24} />
@@ -381,7 +405,6 @@ export default function App() {
         )}
 
         {abaAtiva === 'relatorios' && (
-          /* ABA RELATÓRIOS */
           <div className="space-y-8">
             <header className="flex justify-between items-center">
               <div>
@@ -425,45 +448,11 @@ export default function App() {
                   <p className="text-xl font-bold text-emerald-400 mt-1">45.000 L</p>
                 </div>
               </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-slate-300 mb-3">Resumo da Destinação</h4>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Reciclagem Direta</span>
-                      <span className="text-emerald-400 font-semibold">75%</span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2">
-                      <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '75%' }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Reutilização Interna</span>
-                      <span className="text-cyan-400 font-semibold">15%</span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2">
-                      <div className="bg-cyan-500 h-2 rounded-full" style={{ width: '15%' }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Descarte Tratado</span>
-                      <span className="text-amber-400 font-semibold">10%</span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2">
-                      <div className="bg-amber-500 h-2 rounded-full" style={{ width: '10%' }}></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           </div>
         )}
 
         {abaAtiva === 'configuracoes' && (
-          /* ABA CONFIGURAÇÕES */
           <div className="space-y-8">
             <header>
               <h2 className="text-3xl font-bold">Configurações do Sistema</h2>
@@ -496,12 +485,7 @@ export default function App() {
               </div>
 
               <div className="pt-4 border-t border-slate-800 flex justify-end">
-                <button 
-                  onClick={() => alert('Configurações salvas com sucesso!')}
-                  className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-all"
-                >
-                  Salvar Alterações
-                </button>
+                <span className="text-xs text-emerald-400 self-center mr-auto">✓ Salvo automaticamente</span>
               </div>
             </div>
           </div>
