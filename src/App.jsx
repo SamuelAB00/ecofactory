@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Factory, 
   LayoutDashboard, 
@@ -13,10 +13,10 @@ import {
   Calendar,
   Package,
   Printer,
-  Download,
   CheckCircle2,
   Building,
-  Target
+  Target,
+  Check
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -31,7 +31,7 @@ import {
   Cell
 } from 'recharts';
 
-const dataEvolucao = [
+const INITIAL_EVOLUTION_DATA = [
   { mes: 'Jan', reciclado: 400, metas: 300 },
   { mes: 'Fev', reciclado: 500, metas: 350 },
   { mes: 'Mar', reciclado: 700, metas: 400 },
@@ -40,58 +40,113 @@ const dataEvolucao = [
   { mes: 'Jun', reciclado: 1100, metas: 600 },
 ];
 
-const dataResiduosGrafico = [
-  { name: 'Plástico', value: 45, color: '#10b981' },
-  { name: 'Papel/Papelão', value: 30, color: '#06b6d4' },
-  { name: 'Metal', value: 15, color: '#f59e0b' },
-  { name: 'Vidro', value: 10, color: '#6366f1' },
-];
+const CATEGORY_COLORS = {
+  'Plástico': '#10b981',
+  'Papel/Papelão': '#06b6d4',
+  'Metal': '#f59e0b',
+  'Vidro': '#6366f1',
+};
 
 export default function App() {
   const [abaAtiva, setAbaAtiva] = useState('dashboard');
-
-  const [listaResiduos, setListaResiduos] = useState([
-    { id: 1, material: 'Plástico PET', quantidade: 150, tipo: 'Plástico', data: '2026-08-15' },
-    { id: 2, material: 'Caixas de Papelão', quantidade: 320, tipo: 'Papel/Papelão', data: '2026-08-16' },
-    { id: 3, material: 'Latas de Alumínio', quantidade: 85, tipo: 'Metal', data: '2026-08-17' },
-  ]);
+  const [listaResiduos, setListaResiduos] = useState([]);
 
   const [novoMaterial, setNovoMaterial] = useState('');
   const [novaQuantidade, setNovaQuantidade] = useState('');
   const [novoTipo, setNovoTipo] = useState('Plástico');
 
-  // Estados de Configurações
   const [nomeEmpresa, setNomeEmpresa] = useState('EcoFactory Indústria S.A.');
   const [metaMensal, setMetaMensal] = useState('5000');
+  const [notificacao, setNotificacao] = useState(null);
 
-  const handleAdicionarResiduo = (e) => {
+  const mostrarNotificacao = (mensagem) => {
+    setNotificacao(mensagem);
+    setTimeout(() => setNotificacao(null), 3000);
+  };
+
+  const carregarResiduos = () => {
+    fetch('http://localhost:3001/api/residuos')
+      .then((res) => res.json())
+      .then((data) => setListaResiduos(data))
+      .catch((err) => console.error('Erro ao carregar resíduos:', err));
+  };
+
+  useEffect(() => {
+    carregarResiduos();
+  }, []);
+
+  const totalReciclado = useMemo(() => {
+    return (listaResiduos || []).reduce((acc, item) => acc + Number(item.quantidade || 0), 0);
+  }, [listaResiduos]);
+
+  const percentualMeta = useMemo(() => {
+    const meta = Number(metaMensal) || 1;
+    return Math.min(Math.round((totalReciclado / meta) * 100), 100);
+  }, [totalReciclado, metaMensal]);
+
+  const dataResiduosGrafico = useMemo(() => {
+    const agrupado = (listaResiduos || []).reduce((acc, item) => {
+      acc[item.tipo] = (acc[item.tipo] || 0) + Number(item.quantidade || 0);
+      return acc;
+    }, {});
+
+    return Object.keys(CATEGORY_COLORS).map(tipo => ({
+      name: tipo,
+      value: agrupado[tipo] || 0,
+      color: CATEGORY_COLORS[tipo]
+    }));
+  }, [listaResiduos]);
+
+  const handleAdicionarResiduo = async (e) => {
     e.preventDefault();
-    if (!novoMaterial || !novaQuantidade) return;
+    if (!novoMaterial || !novaQuantidade || Number(novaQuantidade) <= 0) return;
 
-    const item = {
-      id: Date.now(),
-      material: novoMaterial,
-      quantidade: Number(novaQuantidade),
-      tipo: novoTipo,
-      data: new Date().toISOString().split('T')[0]
-    };
+    try {
+      const response = await fetch('http://localhost:3001/api/residuos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          material: novoMaterial,
+          quantidade: Number(novaQuantidade),
+          tipo: novoTipo
+        })
+      });
 
-    setListaResiduos([item, ...listaResiduos]);
-    setNovoMaterial('');
-    setNovaQuantidade('');
+      if (response.ok) {
+        setNovoMaterial('');
+        setNovaQuantidade('');
+        carregarResiduos();
+        mostrarNotificacao('Lote salvo no banco com sucesso!');
+      }
+    } catch (err) {
+      console.error('Erro ao salvar resíduo:', err);
+    }
   };
 
-  const handleDeletarResiduo = (id) => {
-    setListaResiduos(listaResiduos.filter(item => item.id !== id));
-  };
+  const handleDeletarResiduo = async (id) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/residuos/${id}`, {
+        method: 'DELETE'
+      });
 
-  const handleImprimir = () => {
-    window.print();
+      if (response.ok) {
+        carregarResiduos();
+        mostrarNotificacao('Lote removido do banco.');
+      }
+    } catch (err) {
+      console.error('Erro ao deletar resíduo:', err);
+    }
   };
 
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans print:bg-white print:text-black">
-      {/* Sidebar - Oculta ao imprimir */}
+      {notificacao && (
+        <div className="fixed top-5 right-5 z-50 bg-emerald-500 text-slate-950 font-medium px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-all">
+          <Check size={18} />
+          <span>{notificacao}</span>
+        </div>
+      )}
+
       <aside className="w-64 bg-slate-900 border-r border-slate-800 p-6 flex flex-col justify-between shrink-0 print:hidden">
         <div>
           <div className="flex items-center gap-3 mb-8 text-emerald-400">
@@ -100,53 +155,25 @@ export default function App() {
           </div>
 
           <nav className="space-y-2">
-            <button 
-              onClick={() => setAbaAtiva('dashboard')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'dashboard' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <LayoutDashboard size={20} />
-              <span>Dashboard</span>
-            </button>
-
-            <button 
-              onClick={() => setAbaAtiva('residuos')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'residuos' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <Recycle size={20} />
-              <span>Resíduos</span>
-            </button>
-
-            <button 
-              onClick={() => setAbaAtiva('relatorios')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'relatorios' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <BarChart3 size={20} />
-              <span>Relatórios</span>
-            </button>
-
-            <button 
-              onClick={() => setAbaAtiva('configuracoes')}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
-                abaAtiva === 'configuracoes' 
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <Settings size={20} />
-              <span>Configurações</span>
-            </button>
+            {[
+              { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+              { id: 'residuos', label: 'Resíduos', icon: Recycle },
+              { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
+              { id: 'configuracoes', label: 'Configurações', icon: Settings },
+            ].map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setAbaAtiva(id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all ${
+                  abaAtiva === id 
+                    ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' 
+                    : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
+                }`}
+              >
+                <Icon size={20} />
+                <span>{label}</span>
+              </button>
+            ))}
           </nav>
         </div>
 
@@ -154,12 +181,11 @@ export default function App() {
           <Leaf className="text-emerald-400 shrink-0" size={24} />
           <div className="text-xs">
             <p className="font-semibold text-emerald-300">Status Ecológico</p>
-            <p className="text-slate-400">85% Meta atingida</p>
+            <p className="text-slate-400">{percentualMeta}% Meta atingida</p>
           </div>
         </div>
       </aside>
 
-      {/* Conteúdo Principal */}
       <main className="flex-1 p-8 overflow-y-auto">
         {abaAtiva === 'dashboard' && (
           <div className="space-y-8">
@@ -172,7 +198,7 @@ export default function App() {
               <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
                 <div>
                   <p className="text-sm text-slate-400">Total Reciclado</p>
-                  <p className="text-3xl font-bold mt-2 text-emerald-400">4.240 kg</p>
+                  <p className="text-3xl font-bold mt-2 text-emerald-400">{totalReciclado.toLocaleString()} kg</p>
                   <span className="text-xs text-emerald-500 flex items-center gap-1 mt-2">
                     <TrendingUp size={14} /> +12% este mês
                   </span>
@@ -185,7 +211,7 @@ export default function App() {
               <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
                 <div>
                   <p className="text-sm text-slate-400">Redução de CO₂</p>
-                  <p className="text-3xl font-bold mt-2 text-cyan-400">8.9 Ton</p>
+                  <p className="text-3xl font-bold mt-2 text-cyan-400">{(totalReciclado * 0.0021).toFixed(1)} Ton</p>
                   <span className="text-xs text-cyan-500 flex items-center gap-1 mt-2">
                     <TrendingUp size={14} /> +8% este mês
                   </span>
@@ -212,7 +238,7 @@ export default function App() {
                 <h3 className="text-lg font-semibold mb-4">Volume de Reciclagem (kg)</h3>
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dataEvolucao}>
+                    <AreaChart data={INITIAL_EVOLUTION_DATA}>
                       <defs>
                         <linearGradient id="colorReciclado" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#10b981" stopOpacity={0.4}/>
@@ -261,7 +287,7 @@ export default function App() {
                   {dataResiduosGrafico.map((item) => (
                     <div key={item.name} className="flex items-center gap-2">
                       <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></span>
-                      <span className="text-slate-400">{item.name}</span>
+                      <span className="text-slate-400">{item.name} ({item.value} kg)</span>
                     </div>
                   ))}
                 </div>
@@ -312,10 +338,9 @@ export default function App() {
                     onChange={(e) => setNovoTipo(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="Plástico">Plástico</option>
-                    <option value="Papel/Papelão">Papel/Papelão</option>
-                    <option value="Metal">Metal</option>
-                    <option value="Vidro">Vidro</option>
+                    {Object.keys(CATEGORY_COLORS).map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -335,7 +360,7 @@ export default function App() {
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Package size={20} className="text-emerald-400" /> Resíduos Cadastrados
                 </h3>
-                <span className="text-xs text-slate-400">Total: {listaResiduos.length} itens</span>
+                <span className="text-xs text-slate-400">Total: {(listaResiduos || []).length} itens</span>
               </div>
 
               <div className="overflow-x-auto">
@@ -350,7 +375,7 @@ export default function App() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-800">
-                    {listaResiduos.map((item) => (
+                    {(listaResiduos || []).map((item) => (
                       <tr key={item.id} className="hover:bg-slate-800/50 transition-colors">
                         <td className="py-4 px-6 font-medium text-white">{item.material}</td>
                         <td className="py-4 px-6">
@@ -360,7 +385,7 @@ export default function App() {
                         </td>
                         <td className="py-4 px-6 text-emerald-400 font-semibold">{item.quantidade} kg</td>
                         <td className="py-4 px-6 text-slate-400 flex items-center gap-2">
-                          <Calendar size={14} /> {item.data}
+                          <Calendar size={14} /> {item.data ? new Date(item.data).toLocaleDateString('pt-BR') : ''}
                         </td>
                         <td className="py-4 px-6 text-right">
                           <button 
@@ -381,7 +406,6 @@ export default function App() {
         )}
 
         {abaAtiva === 'relatorios' && (
-          /* ABA RELATÓRIOS */
           <div className="space-y-8">
             <header className="flex justify-between items-center">
               <div>
@@ -389,7 +413,7 @@ export default function App() {
                 <p className="text-slate-400 mt-1">Consolidado mensal de impacto ambiental da {nomeEmpresa}.</p>
               </div>
               <button 
-                onClick={handleImprimir}
+                onClick={() => window.print()}
                 className="bg-slate-800 hover:bg-slate-700 text-slate-100 font-medium px-4 py-2.5 rounded-lg text-sm border border-slate-700 transition-all flex items-center gap-2 print:hidden"
               >
                 <Printer size={18} /> Imprimir / Salvar PDF
@@ -410,52 +434,19 @@ export default function App() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
                   <p className="text-xs text-slate-400">Total de Resíduos</p>
-                  <p className="text-xl font-bold text-white mt-1">4.240 kg</p>
+                  <p className="text-xl font-bold text-white mt-1">{totalReciclado.toLocaleString()} kg</p>
                 </div>
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
                   <p className="text-xs text-slate-400">Emissões Evitadas</p>
-                  <p className="text-xl font-bold text-cyan-400 mt-1">8.9 Ton CO₂</p>
+                  <p className="text-xl font-bold text-cyan-400 mt-1">{(totalReciclado * 0.0021).toFixed(1)} Ton CO₂</p>
                 </div>
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
                   <p className="text-xs text-slate-400">Energia Poupada</p>
-                  <p className="text-xl font-bold text-amber-400 mt-1">12.4 MWh</p>
+                  <p className="text-xl font-bold text-amber-400 mt-1">{(totalReciclado * 0.0029).toFixed(1)} MWh</p>
                 </div>
                 <div className="p-4 bg-slate-950 border border-slate-800 rounded-lg">
                   <p className="text-xs text-slate-400">Água Economizada</p>
-                  <p className="text-xl font-bold text-emerald-400 mt-1">45.000 L</p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-slate-300 mb-3">Resumo da Destinação</h4>
-                <div className="space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Reciclagem Direta</span>
-                      <span className="text-emerald-400 font-semibold">75%</span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2">
-                      <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '75%' }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Reutilização Interna</span>
-                      <span className="text-cyan-400 font-semibold">15%</span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2">
-                      <div className="bg-cyan-500 h-2 rounded-full" style={{ width: '15%' }}></div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-slate-400">Descarte Tratado</span>
-                      <span className="text-amber-400 font-semibold">10%</span>
-                    </div>
-                    <div className="w-full bg-slate-950 rounded-full h-2">
-                      <div className="bg-amber-500 h-2 rounded-full" style={{ width: '10%' }}></div>
-                    </div>
-                  </div>
+                  <p className="text-xl font-bold text-emerald-400 mt-1">{(totalReciclado * 10.6).toLocaleString()} L</p>
                 </div>
               </div>
             </div>
@@ -463,7 +454,6 @@ export default function App() {
         )}
 
         {abaAtiva === 'configuracoes' && (
-          /* ABA CONFIGURAÇÕES */
           <div className="space-y-8">
             <header>
               <h2 className="text-3xl font-bold">Configurações do Sistema</h2>
@@ -497,7 +487,7 @@ export default function App() {
 
               <div className="pt-4 border-t border-slate-800 flex justify-end">
                 <button 
-                  onClick={() => alert('Configurações salvas com sucesso!')}
+                  onClick={() => mostrarNotificacao('Configurações salvas com sucesso!')}
                   className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-semibold px-5 py-2.5 rounded-lg text-sm transition-all"
                 >
                   Salvar Alterações
