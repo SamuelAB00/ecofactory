@@ -3,6 +3,8 @@ const cors = require('cors');
 const { Pool } = require('pg');
 
 const app = express();
+const port = 3001;
+
 app.use(cors());
 app.use(express.json());
 
@@ -14,82 +16,192 @@ const pool = new Pool({
   port: 5432,
 });
 
+pool.connect((err, client, release) => {
+  if (err) {
+    return console.error(err.stack);
+  }
+  release();
+});
+
+app.get('/api/maquinas', async (req, res) => {
+  try {
+    const resultado = await pool.query('SELECT * FROM maquinas ORDER BY id DESC');
+    res.json(resultado.rows);
+  } catch (err) {
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
+app.post('/api/maquinas', async (req, res) => {
+  const { nome, setor, tipo, status, consumo_energia, temperatura } = req.body;
+
+  if (!nome || !nome.trim() || !setor || !setor.trim()) {
+    return res.status(400).json({ erro: 'Campos invalidos' });
+  }
+
+  if (Number(consumo_energia) < 0 || Number(temperatura) < 0) {
+    return res.status(400).json({ erro: 'Valores invalidos' });
+  }
+
+  const statusValidos = ['Operacional', 'Manutenção', 'Desligada'];
+  const statusFinal = statusValidos.includes(status) ? status : 'Operacional';
+
+  try {
+    const queryText = `
+      INSERT INTO maquinas (nome, setor, tipo, status, consumo_energia, temperatura)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `;
+    const values = [
+      nome.trim(), 
+      setor.trim(), 
+      tipo || 'Prensa', 
+      statusFinal, 
+      Number(consumo_energia) || 0, 
+      Number(temperatura) || 0
+    ];
+
+    const resultado = await pool.query(queryText, values);
+    res.status(201).json(resultado.rows[0]);
+  } catch (err) {
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
+app.put('/api/maquinas/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nome, setor, tipo, status, consumo_energia, temperatura } = req.body;
+
+  if (!nome || !nome.trim() || !setor || !setor.trim()) {
+    return res.status(400).json({ erro: 'Campos invalidos' });
+  }
+
+  if (Number(consumo_energia) < 0 || Number(temperatura) < 0) {
+    return res.status(400).json({ erro: 'Valores invalidos' });
+  }
+
+  const statusValidos = ['Operacional', 'Manutenção', 'Desligada'];
+  const statusFinal = statusValidos.includes(status) ? status : 'Operacional';
+
+  try {
+    const queryText = `
+      UPDATE maquinas 
+      SET nome = $1, setor = $2, tipo = $3, status = $4, consumo_energia = $5, temperatura = $6
+      WHERE id = $7
+      RETURNING *;
+    `;
+    const values = [
+      nome.trim(), 
+      setor.trim(), 
+      tipo || 'Prensa', 
+      statusFinal, 
+      Number(consumo_energia) || 0, 
+      Number(temperatura) || 0,
+      id
+    ];
+
+    const resultado = await pool.query(queryText, values);
+
+    if (resultado.rowCount === 0) {
+      return res.status(404).json({ erro: 'Nao encontrado' });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (err) {
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
+app.delete('/api/maquinas/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const resultado = await pool.query('DELETE FROM maquinas WHERE id = $1 RETURNING *', [id]);
+    
+    if (resultado.rowCount === 0) {
+      return res.status(404).json({ erro: 'Nao encontrado' });
+    }
+
+    res.json({ mensagem: 'Sucesso' });
+  } catch (err) {
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
 app.get('/api/residuos', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM residuos ORDER BY id DESC');
-    res.json(result.rows);
+    const resultado = await pool.query('SELECT * FROM residuos ORDER BY id DESC');
+    res.json(resultado.rows);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ erro: 'Erro interno' });
   }
 });
 
 app.post('/api/residuos', async (req, res) => {
   const { material, quantidade, tipo } = req.body;
+
+  if (!material || !material.trim() || !quantidade || Number(quantidade) <= 0) {
+    return res.status(400).json({ erro: 'Campos invalidos' });
+  }
+
   try {
-    const result = await pool.query(
-      'INSERT INTO residuos (material, quantidade, tipo, data) VALUES ($1, $2, $3, CURRENT_DATE) RETURNING *',
-      [material, Number(quantidade), tipo]
-    );
-    res.status(201).json(result.rows[0]);
+    const queryText = `
+      INSERT INTO residuos (material, quantidade, tipo, data)
+      VALUES ($1, $2, $3, NOW())
+      RETURNING *;
+    `;
+    const values = [material.trim(), Number(quantidade), tipo || 'Plástico'];
+
+    const resultado = await pool.query(queryText, values);
+    res.status(201).json(resultado.rows[0]);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ erro: 'Erro interno' });
+  }
+});
+
+app.put('/api/residuos/:id', async (req, res) => {
+  const { id } = req.params;
+  const { material, quantidade, tipo } = req.body;
+
+  if (!material || !material.trim() || !quantidade || Number(quantidade) <= 0) {
+    return res.status(400).json({ erro: 'Campos invalidos' });
+  }
+
+  try {
+    const queryText = `
+      UPDATE residuos 
+      SET material = $1, quantidade = $2, tipo = $3
+      WHERE id = $4
+      RETURNING *;
+    `;
+    const values = [material.trim(), Number(quantidade), tipo || 'Plástico', id];
+
+    const resultado = await pool.query(queryText, values);
+
+    if (resultado.rowCount === 0) {
+      return res.status(404).json({ erro: 'Nao encontrado' });
+    }
+
+    res.json(resultado.rows[0]);
+  } catch (err) {
+    res.status(500).json({ erro: 'Erro interno' });
   }
 });
 
 app.delete('/api/residuos/:id', async (req, res) => {
   const { id } = req.params;
   try {
-    await pool.query('DELETE FROM residuos WHERE id = $1', [id]);
-    res.status(204).send();
+    const resultado = await pool.query('DELETE FROM residuos WHERE id = $1 RETURNING *', [id]);
+    
+    if (resultado.rowCount === 0) {
+      return res.status(404).json({ erro: 'Nao encontrado' });
+    }
+
+    res.json({ mensagem: 'Sucesso' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ erro: 'Erro interno' });
   }
 });
 
-app.get('/api/configuracoes', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM configuracoes ORDER BY id DESC LIMIT 1');
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/configuracoes', async (req, res) => {
-  const { nome_empresa, meta_mensal } = req.body;
-  try {
-    const result = await pool.query(
-      'INSERT INTO configuracoes (nome_empresa, meta_mensal) VALUES ($1, $2) RETURNING *',
-      [nome_empresa, Number(meta_mensal)]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/relatorios', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM relatorios_esg ORDER BY id DESC');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.post('/api/relatorios', async (req, res) => {
-  const { periodo, total_reciclado, emissoes_co2_evitadas, energia_poupada, agua_economizada } = req.body;
-  try {
-    const result = await pool.query(
-      'INSERT INTO relatorios_esg (periodo, total_reciclado, emissoes_co2_evitadas, energia_poupada, agua_economizada) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [periodo, total_reciclado, emissoes_co2_evitadas, energia_poupada, agua_economizada]
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.listen(3001, () => {
-  console.log('Servidor backend rodando na porta 3001!');
+app.listen(port, () => {
+  console.log(`Porta: ${port}`);
 });
