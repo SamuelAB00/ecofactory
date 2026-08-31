@@ -1,0 +1,29 @@
+CREATE DATABASE ecofactory;
+
+CREATE TABLE maquinas (
+  id SERIAL PRIMARY KEY,
+  nome VARCHAR(100) NOT NULL,
+  setor VARCHAR(100) NOT NULL,
+  tipo VARCHAR(50) DEFAULT 'Prensa',
+  status VARCHAR(50) DEFAULT 'Operacional',
+  consumo_energia NUMERIC DEFAULT 0,
+  temperatura NUMERIC DEFAULT 0
+);
+
+CREATE TABLE residuos (
+  id SERIAL PRIMARY KEY,
+  material VARCHAR(100) NOT NULL,
+  quantidade NUMERIC NOT NULL,
+  tipo VARCHAR(50) DEFAULT 'Plástico',
+  data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE ocorrencias (
+  id SERIAL PRIMARY KEY,
+  tipo VARCHAR(100) NOT NULL,
+  descricao TEXT NOT NULL,
+  nivel_risco VARCHAR(20) NOT NULL DEFAULT 'Baixo',
+  local VARCHAR(100) NOT NULL,
+  medida_preventiva TEXT DEFAULT '',
+  data TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

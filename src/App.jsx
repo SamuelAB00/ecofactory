@@ -7,7 +7,6 @@ import {
   Settings, 
   Leaf,
   TrendingUp,
-  Award,
   PlusCircle,
   Trash2,
   Calendar,
@@ -20,7 +19,9 @@ import {
   Cpu,
   Edit,
   Search,
-  X
+  X,
+  ShieldAlert,
+  AlertTriangle
 } from 'lucide-react';
 import { 
   AreaChart, 
@@ -58,9 +59,11 @@ export default function App() {
 
   const [listaResiduos, setListaResiduos] = useState([]);
   const [listaMaquinas, setListaMaquinas] = useState([]);
+  const [listaOcorrencias, setListaOcorrencias] = useState([]);
 
   const [buscaMaquina, setBuscaMaquina] = useState('');
   const [buscaResiduo, setBuscaResiduo] = useState('');
+  const [buscaOcorrencia, setBuscaOcorrencia] = useState('');
 
   const [idMaquinaEditando, setIdMaquinaEditando] = useState(null);
   const [nomeMaquina, setNomeMaquina] = useState('');
@@ -74,6 +77,12 @@ export default function App() {
   const [novoMaterial, setNovoMaterial] = useState('');
   const [novaQuantidade, setNovaQuantidade] = useState('');
   const [novoTipo, setNovoTipo] = useState('Plástico');
+
+  const [tipoSST, setTipoSST] = useState('');
+  const [descricaoSST, setDescricaoSST] = useState('');
+  const [nivelRiscoSST, setNivelRiscoSST] = useState('Baixo');
+  const [localSST, setLocalSST] = useState('');
+  const [medidaPreventivaSST, setMedidaPreventivaSST] = useState('');
 
   const [nomeEmpresa, setNomeEmpresa] = useState('EcoFactory Indústria S.A.');
   const [metaMensal, setMetaMensal] = useState('5000');
@@ -103,9 +112,17 @@ export default function App() {
       .catch((err) => console.error(err));
   };
 
+  const carregarOcorrencias = () => {
+    fetch('http://localhost:3001/api/ocorrencias')
+      .then((res) => res.json())
+      .then((data) => Array.isArray(data) && setListaOcorrencias(data))
+      .catch((err) => console.error(err));
+  };
+
   useEffect(() => {
     carregarResiduos();
     carregarMaquinas();
+    carregarOcorrencias();
   }, []);
 
   const totalReciclado = useMemo(() => {
@@ -133,9 +150,7 @@ export default function App() {
   const maquinasFiltradas = useMemo(() => {
     return (listaMaquinas || []).filter(m => 
       m.nome.toLowerCase().includes(buscaMaquina.toLowerCase()) ||
-      m.setor.toLowerCase().includes(buscaMaquina.toLowerCase()) ||
-      m.tipo.toLowerCase().includes(buscaMaquina.toLowerCase()) ||
-      m.status.toLowerCase().includes(buscaMaquina.toLowerCase())
+      m.setor.toLowerCase().includes(buscaMaquina.toLowerCase())
     );
   }, [listaMaquinas, buscaMaquina]);
 
@@ -145,6 +160,14 @@ export default function App() {
       r.tipo.toLowerCase().includes(buscaResiduo.toLowerCase())
     );
   }, [listaResiduos, buscaResiduo]);
+
+  const ocorrenciasFiltradas = useMemo(() => {
+    return (listaOcorrencias || []).filter(o => 
+      o.tipo.toLowerCase().includes(buscaOcorrencia.toLowerCase()) ||
+      o.local.toLowerCase().includes(buscaOcorrencia.toLowerCase()) ||
+      o.nivel_risco.toLowerCase().includes(buscaOcorrencia.toLowerCase())
+    );
+  }, [listaOcorrencias, buscaOcorrencia]);
 
   const limparFormMaquina = () => {
     setIdMaquinaEditando(null);
@@ -265,6 +288,49 @@ export default function App() {
     }
   };
 
+  const handleSalvarOcorrencia = async (e) => {
+    e.preventDefault();
+    if (!tipoSST || !descricaoSST || !localSST) return;
+
+    try {
+      const response = await fetch('http://localhost:3001/api/ocorrencias', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: tipoSST,
+          descricao: descricaoSST,
+          nivel_risco: nivelRiscoSST,
+          local: localSST,
+          medida_preventiva: medidaPreventivaSST
+        })
+      });
+
+      if (response.ok) {
+        setTipoSST('');
+        setDescricaoSST('');
+        setLocalSST('');
+        setMedidaPreventivaSST('');
+        setNivelRiscoSST('Baixo');
+        carregarOcorrencias();
+        mostrarNotificacao('Ocorrência de Segurança registrada!');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeletarOcorrencia = async (id) => {
+    try {
+      const response = await fetch(`http://localhost:3001/api/ocorrencias/${id}`, { method: 'DELETE' });
+      if (response.ok) {
+        carregarOcorrencias();
+        mostrarNotificacao('Ocorrência removida.');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-slate-950 text-slate-100 font-sans print:bg-white print:text-black">
       {notificacao && (
@@ -286,6 +352,7 @@ export default function App() {
               { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
               { id: 'maquinas', label: 'Máquinas', icon: Cpu },
               { id: 'residuos', label: 'Resíduos', icon: Recycle },
+              { id: 'sst', label: 'Segurança (SST)', icon: ShieldAlert },
               { id: 'relatorios', label: 'Relatórios', icon: BarChart3 },
               { id: 'configuracoes', label: 'Configurações', icon: Settings },
             ].map(({ id, label, icon: Icon }) => (
@@ -319,10 +386,10 @@ export default function App() {
           <div className="space-y-8">
             <header>
               <h2 className="text-3xl font-bold">Painel de Controle</h2>
-              <p className="text-slate-400 mt-1">Acompanhe as métricas de reciclagem e metas ESG em tempo real.</p>
+              <p className="text-slate-400 mt-1">Acompanhe as métricas de reciclagem, máquinas e segurança em tempo real.</p>
             </header>
 
-            <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <section className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
                 <div>
                   <p className="text-sm text-slate-400">Total Reciclado</p>
@@ -359,6 +426,19 @@ export default function App() {
                 </div>
                 <div className="p-3 bg-amber-500/10 rounded-lg text-amber-400">
                   <Cpu size={24} />
+                </div>
+              </div>
+
+              <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-start">
+                <div>
+                  <p className="text-sm text-slate-400">Ocorrências SST</p>
+                  <p className="text-3xl font-bold mt-2 text-rose-400">{listaOcorrencias.length}</p>
+                  <span className="text-xs text-rose-500 flex items-center gap-1 mt-2">
+                    <AlertTriangle size={14} /> Registros Abertos
+                  </span>
+                </div>
+                <div className="p-3 bg-rose-500/10 rounded-lg text-rose-400">
+                  <ShieldAlert size={24} />
                 </div>
               </div>
             </section>
@@ -416,7 +496,7 @@ export default function App() {
         {abaAtiva === 'maquinas' && (
           <div className="space-y-8">
             <header>
-              <h2 className="text-3xl font-bold">Gestão de Máquinas (Encontro 8)</h2>
+              <h2 className="text-3xl font-bold">Gestão de Máquinas</h2>
               <p className="text-slate-400 mt-1">Gerencie, filtre e edite o estado dos equipamentos.</p>
             </header>
 
@@ -736,12 +816,161 @@ export default function App() {
           </div>
         )}
 
+        {abaAtiva === 'sst' && (
+          <div className="space-y-8">
+            <header>
+              <h2 className="text-3xl font-bold">Saúde e Segurança no Trabalho (SST)</h2>
+              <p className="text-slate-400 mt-1">Registre e acompanhe ocorrências de risco e medidas preventivas (Encontro 9).</p>
+            </header>
+
+            <form onSubmit={handleSalvarOcorrencia} className="p-6 bg-slate-900 border border-slate-800 rounded-xl space-y-4">
+              <h3 className="text-lg font-semibold text-rose-400 flex items-center gap-2">
+                <ShieldAlert size={20} /> Registrar Ocorrência / Risco
+              </h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Tipo de Ocorrência</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: Vazamento de óleo no piso"
+                    value={tipoSST}
+                    onChange={(e) => setTipoSST(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Local / Setor</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: Galpão de Prensas B"
+                    value={localSST}
+                    onChange={(e) => setLocalSST(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Nível de Risco</label>
+                  <select 
+                    value={nivelRiscoSST}
+                    onChange={(e) => setNivelRiscoSST(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500"
+                  >
+                    <option value="Baixo">Baixo</option>
+                    <option value="Médio">Médio</option>
+                    <option value="Alto">Alto</option>
+                    <option value="Crítico">Crítico</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Descrição detalhada</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: Óleo acumulado perto do pedal acionador da prensa 02."
+                    value={descricaoSST}
+                    onChange={(e) => setDescricaoSST(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">Medida Preventiva</label>
+                  <input 
+                    type="text"
+                    placeholder="Ex: Limpeza com pó de serra e isolamento."
+                    value={medidaPreventivaSST}
+                    onChange={(e) => setMedidaPreventivaSST(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button 
+                  type="submit"
+                  className="bg-rose-500 hover:bg-rose-600 text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-all flex items-center gap-2"
+                >
+                  <PlusCircle size={18} /> Cadastrar Ocorrência
+                </button>
+              </div>
+            </form>
+
+            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+              <div className="p-6 border-b border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <ShieldAlert size={20} className="text-rose-400" /> Histórico de Riscos & Ocorrências
+                </h3>
+
+                <div className="relative w-full md:w-64">
+                  <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
+                  <input 
+                    type="text"
+                    placeholder="Buscar por tipo, local..."
+                    value={buscaOcorrencia}
+                    onChange={(e) => setBuscaOcorrencia(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-300">
+                  <thead className="bg-slate-950 text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-800">
+                    <tr>
+                      <th className="py-3 px-6">Ocorrência</th>
+                      <th className="py-3 px-6">Local</th>
+                      <th className="py-3 px-6">Nível de Risco</th>
+                      <th className="py-3 px-6">Medida Preventiva</th>
+                      <th className="py-3 px-6 text-right">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {ocorrenciasFiltradas.map((o) => (
+                      <tr key={o.id} className="hover:bg-slate-800/50 transition-colors">
+                        <td className="py-4 px-6 font-medium text-white">
+                          {o.tipo}
+                          <span className="text-xs text-slate-500 block font-normal">{o.descricao}</span>
+                        </td>
+                        <td className="py-4 px-6 text-slate-300">{o.local}</td>
+                        <td className="py-4 px-6">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                            o.nivel_risco === 'Baixo'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : o.nivel_risco === 'Médio'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          }`}>
+                            {o.nivel_risco}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-slate-400">{o.medida_preventiva || 'Nenhuma'}</td>
+                        <td className="py-4 px-6 text-right">
+                          <button 
+                            onClick={() => handleDeletarOcorrencia(o.id)}
+                            className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"
+                            title="Remover Registro"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {abaAtiva === 'relatorios' && (
           <div className="space-y-8">
             <header className="flex justify-between items-center">
               <div>
-                <h2 className="text-3xl font-bold">Relatório Sustentável (ESG)</h2>
-                <p className="text-slate-400 mt-1">Consolidado mensal de impacto ambiental da {nomeEmpresa}.</p>
+                <h2 className="text-3xl font-bold">Relatório Sustentável (ESG) & Qualidade</h2>
+                <p className="text-slate-400 mt-1">Consolidado ambiental e auditoria de qualidade da {nomeEmpresa}.</p>
               </div>
               <button 
                 onClick={() => window.print()}
